@@ -346,10 +346,10 @@ export default function Page() {
     <div className="min-h-screen">
       <main className="flex-grow container mx-auto p-6 md:p-12">
         <div className="w-full max-w-7xl mx-auto flex flex-col items-center gap-8">
-          <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl border border-slate-200">_
-            <h1 className="text-3xl font-bold text-slate-800 text-center mb-2">Torque Scope</h1>
+          <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl border border-slate-200">
+            <h1 className="text-3xl font-bold text-slate-800 text-center mb-2">TorqueScope</h1>
             <p className="text-center text-slate-500 mb-6">Faça o upload do seu arquivo CSV para gerar estatísticas e gráficos.</p>
-            
+
             <form onSubmit={handleSubmit} className="flex flex-col items-center gap-6">
               {/* Passo 1: Selecionar Arquivo */}
               <div className="w-full">

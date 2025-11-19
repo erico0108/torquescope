@@ -4,20 +4,20 @@ import React from "react";
 
 export default function TutorialPage() {
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-6">
-      <h1 className="text-4xl font-bold text-blue-700 mb-4">Página de Tutorial</h1>
-      <p className="text-lg text-gray-700 text-center max-w-2xl">
-        Bem-vindo à página de tutorial! Aqui você encontrará guias e informações úteis.
-      </p>
-      <div className="mt-8 p-6 bg-white rounded-lg shadow-md w-full max-w-md">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-4">Primeiros Passos</h2>
-        <p className="text-gray-600">
-          Siga as instruções para começar a usar nossa aplicação.
-        </p>
-        <ol className="list-decimal list-inside space-y-2 mt-4 text-gray-600">
-            <li>Baixe a planilha como um arquivo <strong>CSV</strong>.</li>
-            <li>Abra o site e selecione o arquivo na página de análise.</li>
-        </ol>
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center p-6 md:p-12">
+      <div className="w-full max-w-4xl mx-auto">
+        <h1 className="text-4xl font-bold text-slate-800 mb-8 text-center">Tutorial TorqueScope</h1>
+        
+        <div className="bg-white p-8 rounded-xl shadow-lg w-full border border-slate-200">
+          <h2 className="text-2xl font-semibold text-slate-700 text-center mb-6">Como Preparar e Analisar seu Arquivo</h2>
+          <ol className="list-decimal list-inside space-y-4 text-slate-600 text-lg">
+              <li><b>Prepare sua Planilha:</b> Certifique-se de que sua planilha (Excel, Google Sheets, etc.) tenha uma <b>linha de cabeçalho</b> com nomes para cada coluna.</li>
+              <li><b>Exporte para CSV:</b> No seu software de planilha, vá em "Arquivo" &gt; "Salvar Como" e escolha o formato <b>.csv</b> (Valores Separados por Vírgula).</li>
+              <li><b>Acesse a Análise:</b> Volte para a página principal e use o seletor de arquivo para carregar o seu arquivo .csv.</li>
+              <li><b>Mapeie as Colunas:</b> Após o upload, o sistema mostrará os cabeçalhos do seu arquivo. Designe quais colunas correspondem ao <b>Status do Torque</b>, <b>Valor do Torque</b>, <b>Status do Ângulo</b> e <b>Valor do Ângulo</b>.</li>
+              <li><b>Analise os Dados:</b> Com tudo mapeado, clique em "Analisar Arquivo" para gerar seus resultados, estatísticas e gráficos detalhados instantaneamente.</li>
+          </ol>
+        </div>
       </div>
     </div>
   );

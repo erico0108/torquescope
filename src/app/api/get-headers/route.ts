@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import Papa from "papaparse";
 
 // Configuração para a rota da API (App Router)
-export const config = {
-  maxBytes: 5 * 1024 * 1024, // Define o limite do corpo da requisição para 5MB
-};
+//export const config = {
+//  maxBytes: 5 * 1024 * 1024, // Define o limite do corpo da requisição para 5MB
+//};
 
 export async function POST(request: NextRequest) {
   try {
