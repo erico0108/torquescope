@@ -608,7 +608,7 @@ export default function Page() {
 
         {analysis && (
           <div ref={resultsRef} className="w-full mt-8 bg-slate-50 p-6 rounded-xl border border-slate-200">
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-8">
+            <div className="flex flex-col sm:flex-row justify-center items-center mb-8">
               <h2 className="text-3xl font-bold text-slate-700 text-center">Resultados para: <span className="text-indigo-600">{analysis.fileName}</span></h2>
             </div>
             <MemoizedStats analysis={analysis} />
