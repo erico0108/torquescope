@@ -11,6 +11,8 @@
     "@sgratzl/chartjs-chart-boxplot": "^4.4.5",
     "@types/papaparse": "^5.3.16",
     "chart.js": "^4.5.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.3",
     "next": "16.0.1",
     "papaparse": "^5.5.3",
     "react": "19.2.0",

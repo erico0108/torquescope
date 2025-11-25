@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Nenhum arquivo foi enviado." }, { status: 400 });
     }
 
-    if (!torqueStatusColumn || !torqueValueColumn || !angleStatusColumn || !angleValueColumn) {
-      return NextResponse.json({ error: "Mapeamento de colunas incompleto." }, { status: 400 });
+    if (!torqueValueColumn || !angleValueColumn) {
+      return NextResponse.json({ error: "Mapeamento de colunas de valor (Torque e Ângulo) é obrigatório." }, { status: 400 });
     }
 
     const fileContent = await file.text();
@@ -92,26 +92,40 @@ export async function POST(request: NextRequest) {
           dynamicTyping: false,
           step: (result: ParseStepResult<CsvRecord>) => {
             const record = result.data;
-            const torqueStatus = record[torqueStatusColumn]?.trim().toUpperCase();
+            
+            // Verifica se a coluna de status de torque foi mapeada e existe no registro
+            const torqueStatus = torqueStatusColumn && record[torqueStatusColumn] 
+              ? record[torqueStatusColumn].trim().toUpperCase() 
+              : 'OK'; // Se não, assume 'OK'
+
             const torqueValueStr = record[torqueValueColumn]?.replace(",", ".");
-            const angleStatus = record[angleStatusColumn]?.trim().toUpperCase();
+
+            // Verifica se a coluna de status de ângulo foi mapeada e existe no registro
+            const angleStatus = angleStatusColumn && record[angleStatusColumn]
+              ? record[angleStatusColumn].trim().toUpperCase()
+              : 'OK'; // Se não, assume 'OK'
+
             const angleValueStr = record[angleValueColumn]?.replace(",", ".");
 
             const finalTorque = parseFloat(torqueValueStr);
             const finalAngle = parseFloat(angleValueStr);
 
             // Processa Torque
-            if (torqueStatus === "OK" && !isNaN(finalTorque) && finalTorque >= 0) {
+            if (!isNaN(finalTorque) && finalTorque >= 0) {
+              if (torqueStatus === "OK") {
               data.ok_torque.push(finalTorque);
-            } else if (torqueStatus !== "OK" && !isNaN(finalTorque) && finalTorque >= 0) {
+              } else { // Considera qualquer outro status (incluindo vazio) como NOK
               data.nok_torque.push(finalTorque);
+              }
             }
 
             // Processa Ângulo
-            if (angleStatus === "OK" && !isNaN(finalAngle) && finalAngle >= -250) {
+            if (!isNaN(finalAngle) && finalAngle >= -250) {
+              if (angleStatus === "OK") {
               data.ok_angle.push(finalAngle);
-            } else if (angleStatus !== "OK" && !isNaN(finalAngle) && finalAngle >= -250) {
+              } else {
               data.nok_angle.push(finalAngle);
+              }
             }
           },
           complete: () => resolve(data),
@@ -137,8 +151,10 @@ export async function POST(request: NextRequest) {
     };
 
     const controlChartData = {
-      torque: { labels: rawData.ok_torque.map((_, i) => (i + 1).toString()), data: rawData.ok_torque },
-      angle: { labels: rawData.ok_angle.map((_, i) => (i + 1).toString()), data: rawData.ok_angle },
+      ok_torque: { labels: rawData.ok_torque.map((_, i) => (i + 1).toString()), data: rawData.ok_torque },
+      ok_angle: { labels: rawData.ok_angle.map((_, i) => (i + 1).toString()), data: rawData.ok_angle },
+      nok_torque: { labels: rawData.nok_torque.map((_, i) => (i + 1).toString()), data: rawData.nok_torque },
+      nok_angle: { labels: rawData.nok_angle.map((_, i) => (i + 1).toString()), data: rawData.nok_angle },
     };
 
     return NextResponse.json({ stats: analysisResults, rawData, controlChartData, fileName: file.name });

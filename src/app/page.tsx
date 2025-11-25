@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { Bar, Chart } from "react-chartjs-2";
 import {
   Chart as ChartJS, // Renomeado para evitar conflito com o componente Chart
@@ -15,6 +15,8 @@ import {
   PointElement, // Adicionado para gráficos de linha
 } from "chart.js";
 import { BoxPlotController, BoxAndWiskers } from "@sgratzl/chartjs-chart-boxplot";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 ChartJS.defaults.color = 'black'; // Define a cor padrão do texto para todos os gráficos
  
@@ -95,9 +97,12 @@ interface AnalysisResult {
   all_torque: number[];
   all_angle: number[];
   controlChartData: {
-    torque: { labels: string[], data: number[] };
-    angle: { labels: string[], data: number[] };
+    ok_torque: { labels: string[], data: number[] };
+    ok_angle: { labels: string[], data: number[] };
+    noktorque: { labels: string[], data: number[] };
+    nokangle: { labels: string[], data: number[] };
   };
+
   fileName: string;
 }
 
@@ -135,6 +140,154 @@ function createHistogramData(data: number[], binCount = 15) { // Mantido binCoun
   return { labels, counts: bins };
 }
 
+// Componente Memoizado para as Estatísticas
+const MemoizedStats = React.memo(function MemoizedStats({ analysis }: { analysis: AnalysisResult }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+      <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+        <h3 className="text-black font-semibold mb-4 text-center text-slate-700">Estatísticas de Torque (OK)</h3>
+        <table className="w-full text-left">
+          <tbody>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Contagem</td><td className="text-black">{analysis.stats.ok.torque.count}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Média</td><td className="text-black">{typeof analysis.stats.ok.torque.mean === 'number' ? analysis.stats.ok.torque.mean.toFixed(2) : 'N/A'}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Mediana</td><td className="text-black">{typeof analysis.stats.ok.torque.median === 'number' ? analysis.stats.ok.torque.median.toFixed(2) : 'N/A'}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Desvio Padrão</td><td className="text-black">{typeof analysis.stats.ok.torque.stddev === 'number' ? analysis.stats.ok.torque.stddev.toFixed(2) : 'N/A'}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Assimetria (Skewness)</td><td className="text-black">{typeof analysis.stats.ok.torque.skewness === 'number' ? analysis.stats.ok.torque.skewness.toFixed(3) : 'N/A'}</td></tr>
+            <tr><td className="py-2 pr-2 text-black">Curtose (Kurtosis)</td><td className="text-black">{typeof analysis.stats.ok.torque.kurtosis === 'number' ? analysis.stats.ok.torque.kurtosis.toFixed(3) : 'N/A'}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+        <h3 className="text-black font-semibold mb-4 text-center text-slate-700">Estatísticas de Torque (NOK)</h3>
+        <table className="w-full text-left">
+          <tbody>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Contagem</td><td className="text-black">{analysis.stats.nok.torque.count}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Média</td><td className="text-black">{typeof analysis.stats.nok.torque.mean === 'number' ? analysis.stats.nok.torque.mean.toFixed(2) : 'N/A'}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Mediana</td><td className="text-black">{typeof analysis.stats.nok.torque.median === 'number' ? analysis.stats.nok.torque.median.toFixed(2) : 'N/A'}</td></tr>
+            <tr><td className="py-2 pr-2 text-black">Desvio Padrão</td><td className="text-black">{typeof analysis.stats.nok.torque.stddev === 'number' ? analysis.stats.nok.torque.stddev.toFixed(2) : 'N/A'}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+        <h3 className="text-black font-semibold mb-4 text-center text-slate-700">Estatísticas de Ângulo (OK)</h3>
+        <table className="w-full text-left">
+          <tbody>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Contagem</td><td className="text-black">{analysis.stats.ok.angle.count}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Média</td><td className="text-black">{typeof analysis.stats.ok.angle.mean === 'number' ? analysis.stats.ok.angle.mean.toFixed(2) : 'N/A'}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Mediana</td><td className="text-black">{typeof analysis.stats.ok.angle.median === 'number' ? analysis.stats.ok.angle.median.toFixed(2) : 'N/A'}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Desvio Padrão</td><td className="text-black">{typeof analysis.stats.ok.angle.stddev === 'number' ? analysis.stats.ok.angle.stddev.toFixed(2) : 'N/A'}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Assimetria (Skewness)</td><td className="text-black">{typeof analysis.stats.ok.angle.skewness === 'number' ? analysis.stats.ok.angle.skewness.toFixed(3) : 'N/A'}</td></tr>
+            <tr><td className="py-2 pr-2 text-black">Curtose (Kurtosis)</td><td className="text-black">{typeof analysis.stats.ok.angle.kurtosis === 'number' ? analysis.stats.ok.angle.kurtosis.toFixed(3) : 'N/A'}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+        <h3 className="text-black font-semibold mb-4 text-center text-slate-700">Estatísticas de Ângulo (NOK)</h3>
+        <table className="w-full text-left">
+          <tbody>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Contagem</td><td className="text-black">{analysis.stats.nok.angle.count}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Média</td><td className="text-black">{typeof analysis.stats.nok.angle.mean === 'number' ? analysis.stats.nok.angle.mean.toFixed(2) : 'N/A'}</td></tr>
+            <tr className="border-b"><td className="py-2 pr-2 text-black">Mediana</td><td className="text-black">{typeof analysis.stats.nok.angle.median === 'number' ? analysis.stats.nok.angle.median.toFixed(2) : 'N/A'}</td></tr>
+            <tr><td className="py-2 pr-2 text-black">Desvio Padrão</td><td className="text-black">{typeof analysis.stats.nok.angle.stddev === 'number' ? analysis.stats.nok.angle.stddev.toFixed(2) : 'N/A'}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+});
+
+// Componente Memoizado para os Gráficos
+const MemoizedCharts = React.memo(function MemoizedCharts({ analysis, chartData }: { analysis: AnalysisResult, chartData: any }) {
+  const { torqueHistogram, angleHistogram, nokTorqueHistogram, nokAngleHistogram, torqueNormalCurveData, angleNormalCurveData } = chartData;
+
+  return (
+    <>
+      {/* Cartas de Controle */}
+      <div className="w-full mt-8 bg-slate-100/60 p-6 rounded-xl border border-slate-200">
+          <h2 className="text-3xl font-bold text-slate-700 text-center mb-8">Cartas de Controle</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {analysis?.controlChartData?.ok_torque?.data.length > 0 && (
+              <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+                <h3 className="text-slate-700 font-semibold mb-2 text-center">Carta de Controle de Torque (OK)</h3>
+                <Chart type='line' data={{ labels: analysis.controlChartData.ok_torque.labels, datasets: [{ label: 'Torque', data: analysis.controlChartData.ok_torque.data, borderColor: 'rgba(54, 162, 235, 1)', pointBackgroundColor: 'rgba(54, 162, 235, 1)', pointRadius: 2, fill: false }, { label: 'Média', data: Array(analysis.controlChartData.ok_torque.data.length).fill(analysis.stats.ok.torque.mean), borderColor: 'rgba(75, 192, 192, 1)', pointRadius: 0, borderWidth: 2, fill: false }, { label: 'LSC (+3σ)', data: Array(analysis.controlChartData.ok_torque.data.length).fill(typeof analysis.stats.ok.torque.mean === 'number' && typeof analysis.stats.ok.torque.stddev === 'number' ? analysis.stats.ok.torque.mean + 3 * analysis.stats.ok.torque.stddev : null), borderColor: 'rgba(255, 99, 132, 1)', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, fill: false }, { label: 'LIC (-3σ)', data: Array(analysis.controlChartData.ok_torque.data.length).fill(typeof analysis.stats.ok.torque.mean === 'number' && typeof analysis.stats.ok.torque.stddev === 'number' ? analysis.stats.ok.torque.mean - 3 * analysis.stats.ok.torque.stddev : null), borderColor: 'rgba(255, 99, 132, 1)', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, fill: false }] }} options={{ scales: { y: { beginAtZero: false } } }} />
+              </div>
+            )}
+            {analysis?.controlChartData?.ok_angle?.data.length > 0 && (
+              <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+                <h3 className="text-slate-700 font-semibold mb-2 text-center">Carta de Controle de Ângulo (OK)</h3>
+                <Chart type='line' data={{ labels: analysis.controlChartData.ok_angle.labels, datasets: [{ label: 'Ângulo', data: analysis.controlChartData.ok_angle.data, borderColor: 'rgba(75, 192, 192, 1)', pointBackgroundColor: 'rgba(75, 192, 192, 1)', pointRadius: 2, fill: false }, { label: 'Média', data: Array(analysis.controlChartData.ok_angle.data.length).fill(analysis.stats.ok.angle.mean), borderColor: 'rgba(54, 162, 235, 1)', pointRadius: 0, borderWidth: 2, fill: false }, { label: 'LSC (+3σ)', data: Array(analysis.controlChartData.ok_angle.data.length).fill(typeof analysis.stats.ok.angle.mean === 'number' && typeof analysis.stats.ok.angle.stddev === 'number' ? analysis.stats.ok.angle.mean + 3 * analysis.stats.ok.angle.stddev : null), borderColor: 'rgba(255, 99, 132, 1)', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, fill: false }, { label: 'LIC (-3σ)', data: Array(analysis.controlChartData.ok_angle.data.length).fill(typeof analysis.stats.ok.angle.mean === 'number' && typeof analysis.stats.ok.angle.stddev === 'number' ? analysis.stats.ok.angle.mean - 3 * analysis.stats.ok.angle.stddev : null), borderColor: 'rgba(255, 99, 132, 1)', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, fill: false }] }} options={{ scales: { y: { beginAtZero: false } } }} />
+              </div>
+            )}
+            {analysis?.controlChartData?.noktorque?.data.length > 0 && (
+              <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+                <h3 className="text-slate-700 font-semibold mb-2 text-center">Carta de Controle de Torque (NOK)</h3>
+                <Chart type='line' data={{ labels: analysis.controlChartData.noktorque.labels, datasets: [{ label: 'Torque NOK', data: analysis.controlChartData.noktorque.data, borderColor: 'rgba(255, 99, 132, 1)', pointBackgroundColor: 'rgba(255, 99, 132, 1)', pointRadius: 2, fill: false }, { label: 'Média', data: Array(analysis.controlChartData.noktorque.data.length).fill(analysis.stats.nok.torque.mean), borderColor: 'rgba(255, 159, 64, 1)', pointRadius: 0, borderWidth: 2, fill: false }] }} options={{ scales: { y: { beginAtZero: false } } }} />
+              </div>
+            )}
+            {analysis?.controlChartData?.nokangle?.data.length > 0 && (
+              <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+                <h3 className="text-slate-700 font-semibold mb-2 text-center">Carta de Controle de Ângulo (NOK)</h3>
+                <Chart type='line' data={{ labels: analysis.controlChartData.nokangle.labels, datasets: [{ label: 'Ângulo NOK', data: analysis.controlChartData.nokangle.data, borderColor: 'rgba(255, 99, 132, 1)', pointBackgroundColor: 'rgba(255, 99, 132, 1)', pointRadius: 2, fill: false }, { label: 'Média', data: Array(analysis.controlChartData.nokangle.data.length).fill(analysis.stats.nok.angle.mean), borderColor: 'rgba(255, 159, 64, 1)', pointRadius: 0, borderWidth: 2, fill: false }] }} options={{ scales: { y: { beginAtZero: false } } }} />
+              </div>
+            )}
+          </div>
+      </div>
+
+      {/* Histogramas */}
+      <div className="w-full mt-8 bg-slate-100/60 p-6 rounded-xl border border-slate-200">
+        <h2 className="text-3xl font-bold text-slate-700 text-center mb-8">Histogramas</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {torqueHistogram && torqueHistogram.counts.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200"><h3 className="text-slate-700 font-semibold mb-2 text-center">Histograma de Torque (OK)</h3><Bar data={{ labels: torqueHistogram.labels, datasets: [{ label: 'Contagem', data: torqueHistogram.counts, backgroundColor: 'rgba(54, 162, 235, 0.6)' }] }} options={{ scales: { y: { beginAtZero: true } } }} /></div>}
+          {angleHistogram && angleHistogram.counts.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200"><h3 className="text-slate-700 font-semibold mb-2 text-center">Histograma de Ângulo (OK)</h3><Bar data={{ labels: angleHistogram.labels, datasets: [{ label: 'Contagem', data: angleHistogram.counts, backgroundColor: 'rgba(75, 192, 192, 0.6)' }] }} options={{ scales: { y: { beginAtZero: true } } }} /></div>}
+          {nokTorqueHistogram && nokTorqueHistogram.counts.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200"><h3 className="text-slate-700 font-semibold mb-2 text-center">Histograma de Torque (NOK)</h3><Bar data={{ labels: nokTorqueHistogram.labels, datasets: [{ label: 'Contagem', data: nokTorqueHistogram.counts, backgroundColor: 'rgba(255, 99, 132, 0.6)' }] }} options={{ scales: { y: { beginAtZero: true } } }} /></div>}
+          {nokAngleHistogram && nokAngleHistogram.counts.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200"><h3 className="text-slate-700 font-semibold mb-2 text-center">Histograma de Ângulo (NOK)</h3><Bar data={{ labels: nokAngleHistogram.labels, datasets: [{ label: 'Contagem', data: nokAngleHistogram.counts, backgroundColor: 'rgba(255, 159, 64, 0.6)' }] }} options={{ scales: { y: { beginAtZero: true } } }} /></div>}
+        </div>
+      </div>
+
+      {/* Curvas de Distribuição Normal */}
+      {(torqueNormalCurveData || angleNormalCurveData) && (
+        <div className="w-full mt-8 bg-slate-100/60 p-6 rounded-xl border border-slate-200">
+          <h2 className="text-3xl font-bold text-slate-700 text-center mb-8">Curvas de Distribuição Normal</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {torqueNormalCurveData && (
+              <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+                <h3 className="text-slate-700 font-semibold mb-2 text-center">Curva Normal de Torque (OK)</h3>
+                <Chart type='line' data={{ labels: torqueNormalCurveData.labels, datasets: [{ label: 'Densidade de Probabilidade', data: torqueNormalCurveData.data, borderColor: 'rgba(54, 162, 235, 1)', backgroundColor: 'rgba(54, 162, 235, 0.2)', fill: true, tension: 0.4, pointRadius: 0, }] }} options={{ scales: { x: { type: 'category', title: { display: true, text: 'Torque' } }, y: { beginAtZero: true, title: { display: true, text: 'Densidade de Probabilidade' } } }, plugins: { legend: { display: false } } }} />
+              </div>
+            )}
+            {angleNormalCurveData && (
+              <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+                <h3 className="text-slate-700 font-semibold mb-2 text-center">Curva Normal de Ângulo (OK)</h3>
+                <Chart type='line' data={{ labels: angleNormalCurveData.labels, datasets: [{ label: 'Densidade de Probabilidade', data: angleNormalCurveData.data, borderColor: 'rgba(75, 192, 192, 1)', backgroundColor: 'rgba(75, 192, 192, 0.2)', fill: true, tension: 0.4, pointRadius: 0, }] }} options={{ scales: { x: { type: 'category', title: { display: true, text: 'Ângulo' } }, y: { beginAtZero: true, title: { display: true, text: 'Densidade de Probabilidade' } } }, plugins: { legend: { display: false } } }} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Gráficos de Boxplot */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+        {analysis?.rawData.ok_torque?.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+          <h3 className="text-slate-700 font-semibold mb-2 text-center">Boxplot de Torque (OK)</h3>
+          <Chart type='boxplot' data={{ labels: ['Torque OK'], datasets: [{ label: 'Torque (OK)', data: [analysis.rawData.ok_torque], backgroundColor: 'rgba(54, 162, 235, 0.6)', borderColor: 'rgba(54, 162, 235, 1)' }] }} />
+        </div>}
+        {analysis?.rawData.nok_torque?.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+          <h3 className="text-slate-700 font-semibold mb-2 text-center">Boxplot de Torque (NOK)</h3>
+          <Chart type='boxplot' data={{ labels: ['Torque NOK'], datasets: [{ label: 'Torque (NOK)', data: [analysis.rawData.nok_torque], backgroundColor: 'rgba(255, 99, 132, 0.6)', borderColor: 'rgba(255, 99, 132, 1)' }] }} />
+        </div>}
+        {analysis?.rawData.ok_angle?.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+          <h3 className="text-slate-700 font-semibold mb-2 text-center">Boxplot de Ângulo (OK)</h3>
+          <Chart type='boxplot' data={{ labels: ['Ângulo OK'], datasets: [{ label: 'Ângulo (OK)', data: [analysis.rawData.ok_angle], backgroundColor: 'rgba(75, 192, 192, 0.6)', borderColor: 'rgba(75, 192, 192, 1)' }] }} />
+        </div>}
+        {analysis?.rawData.nok_angle?.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
+          <h3 className="text-slate-700 font-semibold mb-2 text-center">Boxplot de Ângulo (NOK)</h3>
+          <Chart type='boxplot' data={{ labels: ['Ângulo NOK'], datasets: [{ label: 'Ângulo (NOK)', data: [analysis.rawData.nok_angle], backgroundColor: 'rgba(255, 159, 64, 0.6)', borderColor: 'rgba(255, 159, 64, 1)' }] }} />
+        </div>}
+      </div>
+    </>
+  );
+});
+
 export default function Page() {
   const [file, setFile] = useState<File | null>(null);
   const [step, setStep] = useState<'select' | 'map' | 'analyzing'>('select');
@@ -148,6 +301,7 @@ export default function Page() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   // Estados para Cp e Cpk
   const [torqueLSE, setTorqueLSE] = useState('');
@@ -210,8 +364,8 @@ export default function Page() {
       setError("Por favor, selecione um arquivo.");
       return;
     }
-    if (!mapping.torqueStatus || !mapping.torqueValue || !mapping.angleStatus || !mapping.angleValue) {
-      setError("Por favor, mapeie todas as colunas necessárias.");
+    if (!mapping.torqueValue || !mapping.angleValue) {
+      setError("Por favor, mapeie pelo menos as colunas de Valor do Torque e Valor do Ângulo.");
       return;
     }
 
@@ -311,6 +465,52 @@ export default function Page() {
     setProcessPerformance(performanceResults);
   };
 
+  const handleDownload = async (format: 'pdf' | 'png' | 'jpg') => {
+    if (!resultsRef.current) return;
+
+    // Workaround for html2canvas oklch color error with Tailwind CSS
+    // This patches the imported html2canvas object directly.
+    const h2c = html2canvas as any;
+    if (h2c.Color && !h2c.Color.colorParsers.oklch) {
+      h2c.Color.colorParsers.oklch = (val: string) => {
+        return { r: 0, g: 0, b: 0, a: 0 }; // Return transparent for oklch
+      };
+    }
+
+    const downloadButtons = resultsRef.current.querySelector('#download-buttons');
+    if (downloadButtons) {
+      (downloadButtons as HTMLElement).style.display = 'none';
+    }
+
+    const canvas = await html2canvas(resultsRef.current, {
+      scale: 2, // Aumenta a resolução para melhor qualidade
+      useCORS: true,
+      backgroundColor: '#f8fafc'
+    });
+
+    // Restaura a visibilidade dos botões
+    if (downloadButtons) {
+      (downloadButtons as HTMLElement).style.display = 'flex';
+    }
+
+    if (format === 'pdf') {
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`analise-torquescope.pdf`);
+    } else {
+      const image = canvas.toDataURL(format === 'png' ? 'image/png' : 'image/jpeg', 1.0);
+      const link = document.createElement('a');
+      link.href = image;
+      link.download = `analise-torquescope.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
   // Limpa os resultados de Cpk quando um novo arquivo é analisado
   const resetCpkAnalysis = () => {
     setProcessCapacity(null);
@@ -319,28 +519,39 @@ export default function Page() {
     setAngleLSE(''); setAngleLIE('');
   };
 
-  const torqueHistogram = analysis ? createHistogramData(analysis.rawData.ok_torque) : null;
-  const angleHistogram = analysis ? createHistogramData(analysis.rawData.ok_angle) : null;
-
-    // Dados para a curva normal de Torque
-  const torqueNormalCurveData = analysis && typeof analysis.stats.ok.torque.mean === 'number' && typeof analysis.stats.ok.torque.stddev === 'number' && analysis.rawData.ok_torque.length > 0
-    ? calculateNormalDistributionData(
+  // Memoize os cálculos pesados para evitar re-execução em cada render
+  const chartData = useMemo(() => {
+    if (!analysis) {
+      return { torqueHistogram: null, angleHistogram: null, nokTorqueHistogram: null, nokAngleHistogram: null, torqueNormalCurveData: null, angleNormalCurveData: null };
+    }
+  
+    const torqueNormalData = typeof analysis.stats.ok.torque.mean === 'number' && typeof analysis.stats.ok.torque.stddev === 'number' && analysis.rawData.ok_torque.length > 0
+      ? calculateNormalDistributionData(
         analysis.stats.ok.torque.mean,
         analysis.stats.ok.torque.stddev,
         Math.min(...analysis.rawData.ok_torque),
         Math.max(...analysis.rawData.ok_torque)
       )
-    : null;
-
-    // Dados para a curva normal de Ângulo
-  const angleNormalCurveData = analysis && typeof analysis.stats.ok.angle.mean === 'number' && typeof analysis.stats.ok.angle.stddev === 'number' && analysis.rawData.ok_angle.length > 0
-    ? calculateNormalDistributionData(
+      : null;
+    
+    const angleNormalData = typeof analysis.stats.ok.angle.mean === 'number' && typeof analysis.stats.ok.angle.stddev === 'number' && analysis.rawData.ok_angle.length > 0
+      ? calculateNormalDistributionData(
         analysis.stats.ok.angle.mean,
         analysis.stats.ok.angle.stddev,
         Math.min(...analysis.rawData.ok_angle),
         Math.max(...analysis.rawData.ok_angle)
       )
-    : null;
+      : null;
+
+    return {
+      torqueHistogram: createHistogramData(analysis.rawData.ok_torque),
+      angleHistogram: createHistogramData(analysis.rawData.ok_angle),
+      nokTorqueHistogram: createHistogramData(analysis.rawData.nok_torque),
+      nokAngleHistogram: createHistogramData(analysis.rawData.nok_angle),
+      torqueNormalCurveData: torqueNormalData,
+      angleNormalCurveData: angleNormalData
+    };
+  }, [analysis]);
 
   return (
     <div className="min-h-screen">
@@ -363,14 +574,15 @@ export default function Page() {
                   <h3 className="text-slate-600 font-medium mb-4">Passo 2: Mapeie as colunas</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                     {[
-                      { key: 'torqueStatus', label: 'Status do Torque' },
-                      { key: 'torqueValue', label: 'Valor do Torque' },
-                      { key: 'angleStatus', label: 'Status do Ângulo' },
-                      { key: 'angleValue', label: 'Valor do Ângulo' },
-                    ].map(item => (
+                      { key: 'torqueStatus', label: 'Status do Torque', optional: true },
+                      { key: 'torqueValue', label: 'Valor do Torque', optional: false },
+                      { key: 'angleStatus', label: 'Status do Ângulo', optional: true },
+                      { key: 'angleValue', label: 'Valor do Ângulo', optional: false },
+                    ].map((item) => (
                       <div key={item.key}>
                         <label htmlFor={`map-${item.key}`} className="block text-sm font-medium text-slate-700">
                           {item.label}
+                          {item.optional && <span className="text-slate-400 font-normal"> (Opcional)</span>}
                         </label>
                         <select
                           id={`map-${item.key}`}
@@ -395,65 +607,14 @@ export default function Page() {
         {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">{error}</div>}
 
         {analysis && (
-          <div className="w-full mt-8 bg-white/50 p-6 rounded-xl border border-slate-200">
-            <h2 className="text-3xl font-bold text-slate-700 text-center mb-8">Resultados para: <span className="text-indigo-600">{analysis.fileName}</span></h2>
-            
-            {/* Tabela de Estatísticas */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-              <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                <h3 className="text-black font-semibold mb-4 text-center text-slate-700">Estatísticas de Torque (OK)</h3>
-                <table className="w-full text-left">
-                  <tbody>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Contagem</td><td className="text-black">{analysis.stats.ok.torque.count}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Média</td><td className="text-black">{typeof analysis.stats.ok.torque.mean === 'number' ? analysis.stats.ok.torque.mean.toFixed(2) : 'N/A'}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Mediana</td><td className="text-black">{typeof analysis.stats.ok.torque.median === 'number' ? analysis.stats.ok.torque.median.toFixed(2) : 'N/A'}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Desvio Padrão</td><td className="text-black">{typeof analysis.stats.ok.torque.stddev === 'number' ? analysis.stats.ok.torque.stddev.toFixed(2) : 'N/A'}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Assimetria (Skewness)</td><td className="text-black">{typeof analysis.stats.ok.torque.skewness === 'number' ? analysis.stats.ok.torque.skewness.toFixed(3) : 'N/A'}</td></tr>
-                    <tr><td className="py-2 pr-2 text-black">Curtose (Kurtosis)</td><td className="text-black">{typeof analysis.stats.ok.torque.kurtosis === 'number' ? analysis.stats.ok.torque.kurtosis.toFixed(3) : 'N/A'}</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                <h3 className="text-black font-semibold mb-4 text-center text-slate-700">Estatísticas de Torque (NOK)</h3>
-                <table className="w-full text-left">
-                  <tbody>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Contagem</td><td className="text-black">{analysis.stats.nok.torque.count}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Média</td><td className="text-black">{typeof analysis.stats.nok.torque.mean === 'number' ? analysis.stats.nok.torque.mean.toFixed(2) : 'N/A'}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Mediana</td><td className="text-black">{typeof analysis.stats.nok.torque.median === 'number' ? analysis.stats.nok.torque.median.toFixed(2) : 'N/A'}</td></tr>
-                    <tr><td className="py-2 pr-2 text-black">Desvio Padrão</td><td className="text-black">{typeof analysis.stats.nok.torque.stddev === 'number' ? analysis.stats.nok.torque.stddev.toFixed(2) : 'N/A'}</td></tr>
-                  </tbody>
-                </table>
-              </div>
+          <div ref={resultsRef} className="w-full mt-8 bg-slate-50 p-6 rounded-xl border border-slate-200">
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-8">
+              <h2 className="text-3xl font-bold text-slate-700 text-center">Resultados para: <span className="text-indigo-600">{analysis.fileName}</span></h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-              <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                <h3 className="text-black font-semibold mb-4 text-center text-slate-700">Estatísticas de Ângulo (OK)</h3>
-                <table className="w-full text-left">
-                  <tbody>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Contagem</td><td className="text-black">{analysis.stats.ok.angle.count}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Média</td><td className="text-black">{typeof analysis.stats.ok.angle.mean === 'number' ? analysis.stats.ok.angle.mean.toFixed(2) : 'N/A'}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Mediana</td><td className="text-black">{typeof analysis.stats.ok.angle.median === 'number' ? analysis.stats.ok.angle.median.toFixed(2) : 'N/A'}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Desvio Padrão</td><td className="text-black">{typeof analysis.stats.ok.angle.stddev === 'number' ? analysis.stats.ok.angle.stddev.toFixed(2) : 'N/A'}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Assimetria (Skewness)</td><td className="text-black">{typeof analysis.stats.ok.angle.skewness === 'number' ? analysis.stats.ok.angle.skewness.toFixed(3) : 'N/A'}</td></tr>
-                    <tr><td className="py-2 pr-2 text-black">Curtose (Kurtosis)</td><td className="text-black">{typeof analysis.stats.ok.angle.kurtosis === 'number' ? analysis.stats.ok.angle.kurtosis.toFixed(3) : 'N/A'}</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                <h3 className="text-black font-semibold mb-4 text-center text-slate-700">Estatísticas de Ângulo (NOK)</h3>
-                <table className="w-full text-left">
-                  <tbody>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Contagem</td><td className="text-black">{analysis.stats.nok.angle.count}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Média</td><td className="text-black">{typeof analysis.stats.nok.angle.mean === 'number' ? analysis.stats.nok.angle.mean.toFixed(2) : 'N/A'}</td></tr>
-                    <tr className="border-b"><td className="py-2 pr-2 text-black">Mediana</td><td className="text-black">{typeof analysis.stats.nok.angle.median === 'number' ? analysis.stats.nok.angle.median.toFixed(2) : 'N/A'}</td></tr>
-                    <tr><td className="py-2 pr-2 text-black">Desvio Padrão</td><td className="text-black">{typeof analysis.stats.nok.angle.stddev === 'number' ? analysis.stats.nok.angle.stddev.toFixed(2) : 'N/A'}</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <MemoizedStats analysis={analysis} />
 
             {/* Análise de Capacidade do Processo (Cp, Cpk) */}
-            <div className="w-full mt-8 bg-white/50 p-6 rounded-xl border border-slate-200">
+            <div className="w-full mt-8 bg-slate-100/60 p-6 rounded-xl border border-slate-200">
               <h2 className="text-2xl font-bold text-slate-700 text-center mb-6">Capacidade e Performance do Processo</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Inputs para Torque */}
@@ -521,148 +682,7 @@ export default function Page() {
               )}
             </div>
 
-            {/* Cartas de Controle */}
-            <div className="w-full mt-8 bg-white/50 p-6 rounded-xl border border-slate-200">
-                <h2 className="text-3xl font-bold text-slate-700 text-center mb-8">Cartas de Controle</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {analysis?.controlChartData?.torque?.data.length > 0 && (
-                    <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                      <h3 className="text-slate-700 font-semibold mb-2 text-center">Carta de Controle de Torque (OK)</h3>
-                      <Chart type='line' data={{ labels: analysis.controlChartData.torque.labels, datasets: [{ label: 'Torque', data: analysis.controlChartData.torque.data, borderColor: 'rgba(54, 162, 235, 1)', pointBackgroundColor: 'rgba(54, 162, 235, 1)', pointRadius: 2, fill: false }, { label: 'Média', data: Array(analysis.controlChartData.torque.data.length).fill(analysis.stats.ok.torque.mean), borderColor: 'rgba(75, 192, 192, 1)', pointRadius: 0, borderWidth: 2, fill: false }, { label: 'LSC (+3σ)', data: Array(analysis.controlChartData.torque.data.length).fill(typeof analysis.stats.ok.torque.mean === 'number' && typeof analysis.stats.ok.torque.stddev === 'number' ? analysis.stats.ok.torque.mean + 3 * analysis.stats.ok.torque.stddev : null), borderColor: 'rgba(255, 99, 132, 1)', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, fill: false }, { label: 'LIC (-3σ)', data: Array(analysis.controlChartData.torque.data.length).fill(typeof analysis.stats.ok.torque.mean === 'number' && typeof analysis.stats.ok.torque.stddev === 'number' ? analysis.stats.ok.torque.mean - 3 * analysis.stats.ok.torque.stddev : null), borderColor: 'rgba(255, 99, 132, 1)', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, fill: false }] }} options={{ scales: { y: { beginAtZero: false } } }} />
-                    </div>
-                  )}
-                  {analysis?.controlChartData?.angle?.data.length > 0 && (
-                    <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                      <h3 className="text-slate-700 font-semibold mb-2 text-center">Carta de Controle de Ângulo (OK)</h3>
-                      <Chart type='line' data={{ labels: analysis.controlChartData.angle.labels, datasets: [{ label: 'Ângulo', data: analysis.controlChartData.angle.data, borderColor: 'rgba(75, 192, 192, 1)', pointBackgroundColor: 'rgba(75, 192, 192, 1)', pointRadius: 2, fill: false }, { label: 'Média', data: Array(analysis.controlChartData.angle.data.length).fill(analysis.stats.ok.angle.mean), borderColor: 'rgba(54, 162, 235, 1)', pointRadius: 0, borderWidth: 2, fill: false }, { label: 'LSC (+3σ)', data: Array(analysis.controlChartData.angle.data.length).fill(typeof analysis.stats.ok.angle.mean === 'number' && typeof analysis.stats.ok.angle.stddev === 'number' ? analysis.stats.ok.angle.mean + 3 * analysis.stats.ok.angle.stddev : null), borderColor: 'rgba(255, 99, 132, 1)', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, fill: false }, { label: 'LIC (-3σ)', data: Array(analysis.controlChartData.angle.data.length).fill(typeof analysis.stats.ok.angle.mean === 'number' && typeof analysis.stats.ok.angle.stddev === 'number' ? analysis.stats.ok.angle.mean - 3 * analysis.stats.ok.angle.stddev : null), borderColor: 'rgba(255, 99, 132, 1)', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, fill: false }] }} options={{ scales: { y: { beginAtZero: false } } }} />
-                    </div>
-                  )}
-                </div>
-            </div>
-
-            {/* Histogramas */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
-              {torqueHistogram && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200"><h3 className="text-slate-700 font-semibold mb-2 text-center">Histograma de Torque (OK)</h3><Bar data={{ labels: torqueHistogram.labels, datasets: [{ label: 'Contagem', data: torqueHistogram.counts, backgroundColor: 'rgba(54, 162, 235, 0.6)' }] }} options={{ scales: { y: { beginAtZero: true } } }} /></div>}
-              {angleHistogram && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200"><h3 className="text-slate-700 font-semibold mb-2 text-center">Histograma de Ângulo (OK)</h3><Bar data={{ labels: angleHistogram.labels, datasets: [{ label: 'Contagem', data: angleHistogram.counts, backgroundColor: 'rgba(75, 192, 192, 0.6)' }] }} options={{ scales: { y: { beginAtZero: true } } }} /></div>}
-            </div>
-
-            {/* Curvas de Distribuição Normal */}
-            {(torqueNormalCurveData || angleNormalCurveData) && (
-              <div className="w-full mt-8 bg-white/50 p-6 rounded-xl border border-slate-200">
-                <h2 className="text-3xl font-bold text-slate-700 text-center mb-8">Curvas de Distribuição Normal</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {torqueNormalCurveData && (
-                    <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                      <h3 className="text-slate-700 font-semibold mb-2 text-center">Curva Normal de Torque (OK)</h3>
-                      <Chart type='line' data={{
-                        labels: torqueNormalCurveData.labels,
-                        datasets: [
-                          {
-                            label: 'Densidade de Probabilidade',
-                            data: torqueNormalCurveData.data,
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 0,
-                          },
-                        ],
-                      }} options={{
-                        scales: {
-                          x: {
-                            type: 'category', // Garante que o eixo X é tratado como categorias
-                            title: { display: true, text: 'Torque' }
-                          },
-                          y: {
-                            beginAtZero: true,
-                            title: { display: true, text: 'Densidade de Probabilidade' }
-                          },
-                        },
-                        plugins: {
-                          legend: { display: false }
-                        }
-                      }} />
-                    </div>
-                  )}
-                  {angleNormalCurveData && (
-                    <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                      <h3 className="text-slate-700 font-semibold mb-2 text-center">Curva Normal de Ângulo (OK)</h3>
-                      <Chart type='line' data={{
-                        labels: angleNormalCurveData.labels,
-                        datasets: [
-                          {
-                            label: 'Densidade de Probabilidade',
-                            data: angleNormalCurveData.data,
-                            borderColor: 'rgba(75, 192, 192, 1)',
-                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                            fill: true,
-                            tension: 0.4,
-                            pointRadius: 0,
-                          },
-                        ],
-                      }} options={{
-                        scales: {
-                          x: {
-                            type: 'category',
-                            title: { display: true, text: 'Ângulo' }
-                          },
-                          y: {
-                            beginAtZero: true,
-                            title: { display: true, text: 'Densidade de Probabilidade' }
-                          },
-                        },
-                        plugins: {
-                          legend: { display: false }
-                        }
-                      }} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Gráficos de Boxplot */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
-              {analysis?.rawData.ok_torque?.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                <h3 className="text-slate-700 font-semibold mb-2 text-center">Boxplot de Torque (OK)</h3>
-                <Chart type='boxplot' data={{
-                  labels: ['Torque OK'],
-                  datasets: [
-                    {
-                      label: 'Torque (OK)',
-                      data: [analysis.rawData.ok_torque],
-                      backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                      borderColor: 'rgba(54, 162, 235, 1)'
-                    },
-                  ]
-                }} />
-              </div>}
-
-              {analysis?.rawData.nok_torque?.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                <h3 className="text-slate-700 font-semibold mb-2 text-center">Boxplot de Torque (NOK)</h3>
-                <Chart type='boxplot' data={{
-                  labels: ['Torque NOK'],
-                  datasets: [
-                    {
-                      label: 'Torque (NOK)',
-                      data: [analysis.rawData.nok_torque],
-                      backgroundColor: 'rgba(255, 99, 132, 0.6)',
-                      borderColor: 'rgba(255, 99, 132, 1)'
-                    },
-                  ] 
-                }} />
-              </div>}
-
-              {analysis?.rawData.ok_angle?.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                <h3 className="text-slate-700 font-semibold mb-2 text-center">Boxplot de Ângulo (OK)</h3>
-                <Chart type='boxplot' data={{ labels: ['Ângulo OK'], datasets: [{ label: 'Ângulo (OK)', data: [analysis.rawData.ok_angle], backgroundColor: 'rgba(75, 192, 192, 0.6)', borderColor: 'rgba(75, 192, 192, 1)' }] }} />
-              </div>}
-
-              {analysis?.rawData.nok_angle?.length > 0 && <div className="bg-white p-6 rounded-lg shadow-md border border-slate-200">
-                <h3 className="text-slate-700 font-semibold mb-2 text-center">Boxplot de Ângulo (NOK)</h3>
-                <Chart type='boxplot' data={{ labels: ['Ângulo NOK'], datasets: [{ label: 'Ângulo (NOK)', data: [analysis.rawData.nok_angle], backgroundColor: 'rgba(255, 159, 64, 0.6)', borderColor: 'rgba(255, 159, 64, 1)' }] }} />
-              </div>}
-            </div>
+            <MemoizedCharts analysis={analysis} chartData={chartData} />
           </div>
         )}
         </div>
